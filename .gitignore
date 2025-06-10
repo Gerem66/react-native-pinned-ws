@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+lib/
+build/
+
+# iOS
+ios/Pods/
+ios/build/
+ios/*.xcworkspace
+
+# Android
+android/.cxx/
+android/build/
+android/.gradle/
+android/local.properties
+android/.settings/
+
+# TypeScript
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# Environment
+.env*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Package locks (for libraries)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# IDEs
+.vscode/
+.idea/
+
+# Testing
+coverage/
+
+# Temporary
+tmp/
+temp/

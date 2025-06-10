@@ -1,0 +1,97 @@
+{
+  "name": "react-native-ssl-websocket",
+  "version": "1.0.0",
+  "description": "React Native WebSocket with SSL Certificate Pinning support",
+  "main": "dist/commonjs/index.js",
+  "module": "dist/commonjs/index.js",
+  "types": "dist/typescript/index.d.ts",
+  "react-native": "dist/commonjs/index.js",
+  "source": "src/index.ts",
+  "files": [
+    "src",
+    "dist",
+    "android",
+    "ios",
+    "*.podspec",
+    "codegen.json",
+    "!android/build",
+    "!ios/build",
+    "!**/__tests__/**"
+  ],
+  "scripts": {
+    "test": "jest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint \"**/*.{js,ts,tsx}\"",
+    "clean": "del-cli android/build dist",
+    "prepare": "rm -rf dist && tsc --project tsconfig.build.json && tsc --project tsconfig.types.json",
+    "release": "release-it"
+  },
+  "keywords": [
+    "react-native",
+    "ios",
+    "android",
+    "websocket",
+    "ssl",
+    "pinning",
+    "certificate",
+    "security"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gamelife/react-native-ssl-websocket.git"
+  },
+  "author": "GameLife Team <contact@gamelife.com> (https://gamelife.com)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/gamelife/react-native-ssl-websocket/issues"
+  },
+  "homepage": "https://github.com/gamelife/react-native-ssl-websocket#readme",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "devDependencies": {
+    "@babel/preset-env": "^7.27.2",
+    "@babel/preset-react": "^7.27.1",
+    "@babel/preset-typescript": "^7.27.1",
+    "@commitlint/config-conventional": "^17.0.2",
+    "@react-native/babel-preset": "^0.79.3",
+    "@react-native/eslint-config": "^0.79.0",
+    "@release-it/conventional-changelog": "^5.0.0",
+    "@types/jest": "^29.5.2",
+    "@types/react": "^18.2.6",
+    "babel-jest": "^30.0.0-beta.3",
+    "commitlint": "^17.0.2",
+    "del-cli": "^5.1.0",
+    "eslint": "^8.51.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.1",
+    "jest": "^29.6.3",
+    "prettier": "^3.0.3",
+    "react": "19.0.0",
+    "react-native": "0.79.2",
+    "react-native-builder-bob": "^0.23.2",
+    "release-it": "^16.1.4",
+    "typescript": "^5.2.2"
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  },
+  "packageManager": "yarn@3.6.1",
+  "codegenConfig": {
+    "name": "SSLWebSocketSpec",
+    "type": "modules",
+    "jsSrcsDir": "src",
+    "android": {
+      "javaPackageName": "com.sslwebsocket"
+    }
+  },
+  "react-native-builder-bob": {
+    "source": "src",
+    "output": "dist",
+    "targets": [
+      "module",
+      "commonjs"
+    ]
+  }
+}
