@@ -1,4 +1,3 @@
-import { DeviceEventEmitter, NativeEventEmitter } from 'react-native';
 // @ts-ignore
 import NativeSSLWebSocket from './NativeSSLWebSocket';
 import type {
@@ -8,10 +7,6 @@ import type {
   EventListener,
   SSLWebSocketInterface,
   EventListenerMap,
-  WebSocketOpenEvent,
-  WebSocketMessageEvent,
-  WebSocketErrorEvent,
-  WebSocketCloseEvent,
   SSLWebSocketErrorType,
 } from './types';
 import { WebSocketReadyState, SSLWebSocketErrorCode } from './types';
@@ -27,27 +22,20 @@ export class SSLWebSocket implements SSLWebSocketInterface {
   private _readyState: WebSocketReadyState = WebSocketReadyState.CLOSED;
   private _listeners: Map<string, Set<EventListener>> = new Map();
   private _config: WebSocketConfig;
-  private _nativeEventSubscription: any;
-  private _deviceEventSubscription: any;
+  private _nativeEventSubscription: any = null;
+  private _deviceEventSubscription: any = null;
+  private _globalEventSubscription: any = null;
+
+  // Polling-based event system
+  private _pollingInterval: NodeJS.Timeout | null = null;
+  private _isPolling: boolean = false;
 
   constructor(config: WebSocketConfig) {
     this._id = this._generateId();
     this._url = config.url;
     this._config = config;
-    
-    this._setupEventListeners();
-    this._setupDirectCallback();
-  }
 
-  private _setupDirectCallback(): void {
-    // Configure direct callback as ultimate fallback
-    try {
-      NativeModule.registerEventCallback(this._id, (event: any) => {
-        this._handleWebSocketEvent(event, 'DirectCallback');
-      });
-    } catch (error) {
-      // Direct callback not available, use only DeviceEventEmitter
-    }
+    this._setupEventListeners();
   }
 
   get readyState(): WebSocketReadyState {
@@ -102,50 +90,55 @@ export class SSLWebSocket implements SSLWebSocketInterface {
       ? [this._config.protocols]
       : undefined;
 
-    // Call createWebSocket without await - all events will go through listeners
-    NativeModule.createWebSocket(
-      this._id,
-      this._config.url,
-      protocols,
-      this._config.sslPinning,
-      this._config.options
-    ).catch((error: any) => {
-      // If createWebSocket fails immediately (ex: invalid parameters),
-      // emit the error via events
-      this._readyState = WebSocketReadyState.CLOSED;
-      const errorObj = error instanceof Error ? error : new Error(String(error));
-      
-      // Parse error type based on message
-      let errorType: SSLWebSocketErrorType = 'connection';
-      let code: SSLWebSocketErrorCode | undefined;
-      
-      const errorMessage = errorObj.message.toLowerCase();
-      
-      if (errorMessage.includes('ssl') || errorMessage.includes('pinning') || errorMessage.includes('certificate')) {
-        errorType = 'ssl_pinning';
-        code = SSLWebSocketErrorCode.SSL_PINNING_FAILED;
-      } else if (errorMessage.includes('network') || errorMessage.includes('timeout')) {
-        errorType = 'network';
-        code = SSLWebSocketErrorCode.CONNECTION_FAILED;
-      } else if (errorMessage.includes('invalid url')) {
-        errorType = 'validation';
-        code = SSLWebSocketErrorCode.INVALID_URL;
-      } else if (errorMessage.includes('already exists')) {
-        errorType = 'validation';
-        code = SSLWebSocketErrorCode.WEBSOCKET_EXISTS;
-      } else {
-        errorType = 'websocket';
-        code = SSLWebSocketErrorCode.CONNECTION_FAILED;
-      }
-      
-      this._emitEvent({
-        type: 'error',
-        error: errorObj,
-        message: errorObj.message,
-        code,
-        errorType,
+    // Add a small delay to ensure listeners are completely ready
+    // This fixes the timing issue where native events arrive before JS listeners are fully configured
+    setTimeout(() => {
+
+      // Call createWebSocket - all events will come through DeviceEventEmitter
+      NativeModule.createWebSocket(
+        this._id,
+        this._config.url,
+        protocols,
+        this._config.sslPinning,
+        this._config.options
+      ).catch((error: any) => {
+        // If createWebSocket fails immediately (ex: invalid parameters),
+        // emit the error via events
+        this._readyState = WebSocketReadyState.CLOSED;
+        const errorObj = error instanceof Error ? error : new Error(String(error));
+
+        // Parse error type based on message
+        let errorType: SSLWebSocketErrorType = 'connection';
+        let code: SSLWebSocketErrorCode | undefined;
+
+        const errorMessage = errorObj.message.toLowerCase();
+
+        if (errorMessage.includes('ssl') || errorMessage.includes('pinning') || errorMessage.includes('certificate')) {
+          errorType = 'ssl_pinning';
+          code = SSLWebSocketErrorCode.SSL_PINNING_FAILED;
+        } else if (errorMessage.includes('network') || errorMessage.includes('timeout')) {
+          errorType = 'network';
+          code = SSLWebSocketErrorCode.CONNECTION_FAILED;
+        } else if (errorMessage.includes('invalid url')) {
+          errorType = 'validation';
+          code = SSLWebSocketErrorCode.INVALID_URL;
+        } else if (errorMessage.includes('already exists')) {
+          errorType = 'validation';
+          code = SSLWebSocketErrorCode.WEBSOCKET_EXISTS;
+        } else {
+          errorType = 'websocket';
+          code = SSLWebSocketErrorCode.CONNECTION_FAILED;
+        }
+
+        this._emitEvent({
+          type: 'error',
+          error: errorObj,
+          message: errorObj.message,
+          code,
+          errorType,
+        });
       });
-    });
+    }, 200); // Increased delay to 200ms to ensure listeners are fully ready
   }
 
   close(code?: number, reason?: string): void {
@@ -154,7 +147,7 @@ export class SSLWebSocket implements SSLWebSocketInterface {
     }
 
     this._readyState = WebSocketReadyState.CLOSING;
-    
+
     // Handle potential errors during closure
     try {
       NativeModule.closeWebSocket(this._id, code, reason)
@@ -170,7 +163,7 @@ export class SSLWebSocket implements SSLWebSocketInterface {
           });
         });
     } catch (error) {
-      // Erreur synchrone lors de l'appel
+      // Synchronous error during call
       console.warn('Synchronous error closing WebSocket:', error);
       this._readyState = WebSocketReadyState.CLOSED;
       this._emitEvent({
@@ -184,11 +177,11 @@ export class SSLWebSocket implements SSLWebSocketInterface {
 
   send(data: string | ArrayBuffer | Blob): void {
     if (this._readyState !== WebSocketReadyState.OPEN) {
-      throw new Error('WebSocket is not in OPEN state');
+      throw new Error('WebSocket is not open');
     }
 
     let stringData: string;
-    
+
     if (typeof data === 'string') {
       stringData = data;
     } else if (data instanceof ArrayBuffer) {
@@ -230,24 +223,64 @@ export class SSLWebSocket implements SSLWebSocketInterface {
     return `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
+  /**
+   * Setup event listeners for WebSocket events using polling approach
+   */
   private _setupEventListeners(): void {
-    // Essayer d'abord DeviceEventEmitter (plus simple)
-    this._deviceEventSubscription = DeviceEventEmitter.addListener('SSLWebSocket_Event', (event: any) => {
-      this._handleWebSocketEvent(event, 'DeviceEventEmitter');
-    });
-    
-    // Essayer aussi NativeEventEmitter comme fallback
-    try {
-      const eventEmitter = new NativeEventEmitter(NativeModule);
-      this._nativeEventSubscription = eventEmitter.addListener('SSLWebSocket_Event', (event: any) => {
-        this._handleWebSocketEvent(event, 'NativeEventEmitter');
-      });
-    } catch (error) {
-      // NativeEventEmitter non disponible
-    }
+    this._startPolling();
   }
 
-  private _handleWebSocketEvent(event: any, source: string): void {
+  /**
+   * Start polling for events from native module
+   */
+  private _startPolling(): void {
+    if (this._isPolling) {
+      return;
+    }
+
+    this._isPolling = true;
+
+    const pollEvents = async () => {
+      try {
+        const events = await NativeModule.pollEvents();
+
+        if (events && events.length > 0) {
+          // Process each event
+          for (const event of events) {
+            // Only handle events for this WebSocket instance
+            if (event.id === this._id) {
+              this._handleWebSocketEvent(event, 'Polling');
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('SSLWebSocket: Error polling events:', error);
+      }
+    };
+
+    // Poll every 100ms for responsive event handling
+    this._pollingInterval = setInterval(pollEvents, 100);
+
+    // Also poll immediately to catch any existing events
+    pollEvents();
+  }
+
+  /**
+   * Stop polling for events
+   */
+  private _stopPolling(): void {
+    if (this._pollingInterval) {
+      clearInterval(this._pollingInterval);
+      this._pollingInterval = null;
+    }
+    this._isPolling = false;
+  }
+
+  /**
+   * Handle WebSocket events from native side
+   */
+  private _handleWebSocketEvent(event: any, _source: string): void {
+    // Check if this event is for our WebSocket instance
     if (event.id !== this._id) {
       return;
     }
@@ -264,18 +297,17 @@ export class SSLWebSocket implements SSLWebSocketInterface {
         data: event.data,
       });
     } else if (event.type === 'error') {
-      if (this._readyState === WebSocketReadyState.CONNECTING) {
-        this._readyState = WebSocketReadyState.CLOSED;
-      }
+      this._readyState = WebSocketReadyState.CLOSED;
+
       const errorObj = event.error ? new Error(event.error) : new Error('Unknown WebSocket error');
-      
+
       // Parse error type for native events
       let errorType: SSLWebSocketErrorType = 'websocket';
       let code: SSLWebSocketErrorCode | undefined;
-      let sslInfo: any = undefined;
-      
+      let sslInfo: any;
+
       const errorMessage = errorObj.message.toLowerCase();
-      
+
       if (errorMessage.includes('ssl') || errorMessage.includes('pinning') || errorMessage.includes('certificate')) {
         errorType = 'ssl_pinning';
         code = SSLWebSocketErrorCode.SSL_PINNING_FAILED;
@@ -286,7 +318,7 @@ export class SSLWebSocket implements SSLWebSocketInterface {
         errorType = 'websocket';
         code = SSLWebSocketErrorCode.WEBSOCKET_ERROR;
       }
-      
+
       this._emitEvent({
         type: 'error',
         error: errorObj,
@@ -320,18 +352,21 @@ export class SSLWebSocket implements SSLWebSocketInterface {
   }
 
   /**
-   * Nettoyer les ressources (à appeler quand le WebSocket n'est plus utilisé)
+   * Clean up resources (to be called when the WebSocket is no longer used)
    */
   cleanup(): void {
     // Close connection if not already closed
     if (this._readyState !== WebSocketReadyState.CLOSED) {
       this.close(1000, 'Cleanup');
     }
-    
+
+    // Stop polling
+    this._stopPolling();
+
     // Clean up listeners
     this._listeners.clear();
-    
-    // Supprimer les subscriptions avec gestion d'erreur
+
+    // Remove event subscriptions (legacy cleanup)
     try {
       if (this._deviceEventSubscription) {
         this._deviceEventSubscription.remove();
@@ -340,7 +375,16 @@ export class SSLWebSocket implements SSLWebSocketInterface {
     } catch (error) {
       console.warn('Error removing device event subscription:', error);
     }
-    
+
+    try {
+      if (this._globalEventSubscription) {
+        this._globalEventSubscription.remove();
+        this._globalEventSubscription = null;
+      }
+    } catch (error) {
+      console.warn('Error removing global event subscription:', error);
+    }
+
     try {
       if (this._nativeEventSubscription) {
         this._nativeEventSubscription.remove();
@@ -349,7 +393,7 @@ export class SSLWebSocket implements SSLWebSocketInterface {
     } catch (error) {
       console.warn('Error removing native event subscription:', error);
     }
-    
+
     // Clean up native side with error handling
     try {
       NativeModule.cleanup(this._id)
@@ -359,7 +403,7 @@ export class SSLWebSocket implements SSLWebSocketInterface {
     } catch (error) {
       console.warn('Synchronous error during native cleanup:', error);
     }
-    
+
     // Force closed state
     this._readyState = WebSocketReadyState.CLOSED;
   }

@@ -55,7 +55,7 @@ export enum SSLWebSocketErrorCode {
 }
 
 /** Error types to differentiate SSL errors from classic WebSocket errors */
-export type SSLWebSocketErrorType = 
+export type SSLWebSocketErrorType =
   | 'websocket'      // Classic WebSocket error
   | 'ssl_pinning'    // SSL pinning specific error
   | 'network'        // Network error
@@ -91,10 +91,10 @@ export interface WebSocketCloseEvent {
 }
 
 // Union type for all events
-export type WebSocketEvent = 
-  | WebSocketOpenEvent 
-  | WebSocketMessageEvent 
-  | WebSocketErrorEvent 
+export type WebSocketEvent =
+  | WebSocketOpenEvent
+  | WebSocketMessageEvent
+  | WebSocketErrorEvent
   | WebSocketCloseEvent;
 
 export interface SSLValidationResult {
@@ -132,34 +132,34 @@ interface EventListenerMap {
 interface SSLWebSocketInterface {
   /** Current connection state */
   readyState: WebSocketReadyState;
-  
+
   /** Connection URL */
   url: string;
-  
+
   /** Protocol used */
   protocol: string;
-  
+
   /** Connect the WebSocket */
   connect(): void;
-  
+
   /** Close the connection */
   close(code?: number, reason?: string): void;
-  
+
   /** Send data */
   send(data: string | ArrayBuffer | Blob): void;
-  
+
   /** Add event listener with specific typing */
   addEventListener<K extends keyof EventListenerMap>(type: K, listener: EventListenerMap[K]): void;
-  
+
   /** Remove event listener with specific typing */
   removeEventListener<K extends keyof EventListenerMap>(type: K, listener: EventListenerMap[K]): void;
-  
+
   /** Get SSL validation result */
   getSSLValidationResult(): Promise<SSLValidationResult | null>;
 }
 
-export type { 
-  EventListener, 
-  EventListenerMap, 
-  SSLWebSocketInterface
+export type {
+  EventListener,
+  EventListenerMap,
+  SSLWebSocketInterface,
 };

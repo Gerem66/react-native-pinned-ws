@@ -1,6 +1,6 @@
 //
 //  SSLWebSocketConnection.m
-//  react-native-ssl-websocket
+//  react-native-pinned-ws
 //
 //  Created by GameLife Team on 2025-06-06.
 //

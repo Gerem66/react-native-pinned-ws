@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.13)
 
 # Project declaration
-project(react-native-ssl-websocket)
+project(react-native-pinned-ws)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 set(CMAKE_CXX_STANDARD 17)
 
 # Define library name
-set(PACKAGE_NAME "react-native-ssl-websocket")
+set(PACKAGE_NAME "react-native-pinned-ws")
 
 # Convert input paths to CMake format
 file(TO_CMAKE_PATH "${PROJECT_BUILD_DIR}" PROJECT_BUILD_DIR)

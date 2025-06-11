@@ -10,7 +10,7 @@ export type {
   SSLValidationResult,
 } from './types';
 
-export { 
-  WebSocketReadyState, 
+export {
+  WebSocketReadyState,
   SSLWebSocketErrorCode,
 } from './types';

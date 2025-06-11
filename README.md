@@ -2,18 +2,18 @@
 
 > **Attention** : Cette bibliothèque a été entièrement conçue et générée par IA. Bien que fonctionnelle, une review humaine est recommandée avant utilisation en production.
 
-WebSocket sécurisé avec SSL Certificate Pinning pour React Native.
+WebSocket sécurisé avec SSL Public Key Pinning pour React Native.
 
 ## Installation
 
 ```bash
-npm install react-native-ssl-websocket
+npm install react-native-pinned-ws
 ```
 
 ## Usage
 
 ```typescript
-import { SSLWebSocket } from 'react-native-ssl-websocket';
+import { SSLWebSocket } from 'react-native-pinned-ws';
 
 const ws = new SSLWebSocket({
   url: 'wss://api.example.com/ws',
@@ -42,7 +42,7 @@ ws.connect();
 ## Types
 
 - `WebSocketConfig` - Configuration complète
-- `SSLPinningConfig` - Configuration SSL Pinning  
+- `SSLPinningConfig` - Configuration SSL Public Key Pinning  
 - `WebSocket*Event` - Types d'événements typés
 - `SSLValidationResult` - Résultat validation SSL
 

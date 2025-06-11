@@ -12,16 +12,23 @@ import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.Queue;
+import java.util.List;
+import java.util.ArrayList;
 
 public class SSLWebSocketModule extends ReactContextBaseJavaModule {
     public static final String NAME = "SSLWebSocket";
     private final ConcurrentHashMap<String, SSLWebSocketConnection> connections = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Callback> eventCallbacks = new ConcurrentHashMap<>();
+    
+    // Event queue for polling-based approach
+    private final Queue<WritableMap> eventQueue = new ConcurrentLinkedQueue<>();
 
     public SSLWebSocketModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -42,10 +49,8 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
             @Nullable ReadableMap options,
             Promise promise
     ) {
-        android.util.Log.d("SSLWebSocket", "Création WebSocket - ID: " + wsId + ", URL: " + url);
         try {
             if (connections.containsKey(wsId)) {
-                android.util.Log.w("SSLWebSocket", "WebSocket existe déjà: " + wsId);
                 promise.reject("websocket_exists", "WebSocket with this ID already exists");
                 return;
             }
@@ -59,19 +64,14 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
                     new SSLWebSocketConnection.EventListener() {
                         @Override
                         public void onEvent(String wsId, WritableMap event) {
-                            android.util.Log.d("SSLWebSocket", "Événement reçu du WebSocket: " + event.toString());
-                            
                             // Check that connection still exists
                             if (connections.containsKey(wsId)) {
                                 sendWebSocketEvent(wsId, event);
-                            } else {
-                                android.util.Log.d("SSLWebSocket", "Connection already removed for: " + wsId + ", ignored event");
                             }
                         }
 
                         @Override
                         public void onClose(String wsId, int code, String reason) {
-                            android.util.Log.d("SSLWebSocket", "WebSocket fermé: " + wsId + ", code: " + code);
                             connections.remove(wsId);
                             
                             WritableMap event = Arguments.createMap();
@@ -84,51 +84,34 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
             );
 
             connections.put(wsId, connection);
-            android.util.Log.d("SSLWebSocket", "Connexion WebSocket créée, démarrage...");
             connection.connect();
             
             // Resolve Promise once connection is created and initialized
             promise.resolve(null);
 
         } catch (Exception e) {
-            android.util.Log.e("SSLWebSocket", "Erreur création WebSocket: " + e.getMessage(), e);
-            // Rejeter la Promise en cas d'erreur
             promise.reject("connection_failed", e.getMessage(), e);
         }
     }
 
     @ReactMethod
-    public void registerEventCallback(String wsId, Callback callback) {
-        android.util.Log.d("SSLWebSocket", "Enregistrement callback pour WebSocket: " + wsId);
-        eventCallbacks.put(wsId, callback);
-    }
-
-    @ReactMethod
     public void closeWebSocket(String wsId, @Nullable Integer code, @Nullable String reason, Promise promise) {
         try {
-            android.util.Log.d("SSLWebSocket", "Fermeture WebSocket: " + wsId + ", code: " + code);
-            
             SSLWebSocketConnection connection = connections.get(wsId);
             if (connection == null) {
-                android.util.Log.w("SSLWebSocket", "WebSocket non trouvé pour fermeture: " + wsId);
                 promise.reject("websocket_not_found", "WebSocket not found");
                 return;
             }
 
-            // Fermer la connexion
+            // Close connection
             connection.close(code != null ? code : 1000, reason);
             
             // Immediately remove connection from map to avoid leaks
             connections.remove(wsId);
             
-            // Remove associated callback
-            eventCallbacks.remove(wsId);
-            
-            android.util.Log.d("SSLWebSocket", "WebSocket fermé et nettoyé: " + wsId);
             promise.resolve(null);
 
         } catch (Exception e) {
-            android.util.Log.e("SSLWebSocket", "Erreur fermeture WebSocket: " + e.getMessage(), e);
             promise.reject("close_failed", e.getMessage(), e);
         }
     }
@@ -185,65 +168,74 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void cleanup(String wsId, Promise promise) {
         try {
-            android.util.Log.d("SSLWebSocket", "Début nettoyage WebSocket: " + wsId);
-            
-            // Remove callback first to avoid calls after cleanup
-            eventCallbacks.remove(wsId);
-            
             // Then remove and cleanup connection
             SSLWebSocketConnection connection = connections.remove(wsId);
             if (connection != null) {
                 connection.cleanup();
-                android.util.Log.d("SSLWebSocket", "Connection cleaned up for: " + wsId);
-            } else {
-                android.util.Log.d("SSLWebSocket", "No connection to clean up for: " + wsId);
             }
             
-            android.util.Log.d("SSLWebSocket", "Nettoyage WebSocket terminé: " + wsId);
             promise.resolve(null);
 
         } catch (Exception e) {
-            android.util.Log.e("SSLWebSocket", "Erreur lors du nettoyage: " + e.getMessage(), e);
             promise.reject("cleanup_failed", e.getMessage(), e);
         }
     }
 
+    @ReactMethod
+    public void pollEvents(Promise promise) {
+        try {
+            List<WritableMap> events = new ArrayList<>();
+            
+            // Get all available events from queue
+            WritableMap event;
+            while ((event = eventQueue.poll()) != null) {
+                events.add(event);
+            }
+            
+            // Convert list to WritableArray
+            WritableArray eventsArray = Arguments.createArray();
+            for (WritableMap e : events) {
+                eventsArray.pushMap(e);
+            }
+            
+            promise.resolve(eventsArray);
+            
+        } catch (Exception e) {
+            promise.reject("polling_failed", e.getMessage(), e);
+        }
+    }
+
     private void sendEvent(String eventName, WritableMap params) {
-        android.util.Log.d("SSLWebSocket", "Émission événement: " + eventName + " avec params: " + params.toString());
         if (getReactApplicationContext().hasActiveReactInstance()) {
             try {
                 getReactApplicationContext()
                         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
                         .emit(eventName, params);
-                android.util.Log.d("SSLWebSocket", "Événement émis avec succès via DeviceEventEmitter");
             } catch (Exception e) {
-                android.util.Log.e("SSLWebSocket", "Erreur DeviceEventEmitter: " + e.getMessage(), e);
+                android.util.Log.e("SSLWebSocket", "DeviceEventEmitter error: " + e.getMessage(), e);
             }
         } else {
-            android.util.Log.w("SSLWebSocket", "Pas d'instance React active, événement non émis");
+            android.util.Log.w("SSLWebSocket", "No active React instance, event not emitted");
         }
     }
 
     private void sendWebSocketEvent(String wsId, WritableMap event) {
         event.putString("id", wsId);
         
-        // Essayer d'abord le callback direct si disponible
-        Callback callback = eventCallbacks.get(wsId);
-        if (callback != null) {
-            android.util.Log.d("SSLWebSocket", "Envoi événement via callback direct: " + event.toString());
-            try {
-                // Appeler directement le callback sans changement de thread
-                callback.invoke(event);
-                android.util.Log.d("SSLWebSocket", "Callback direct appelé avec succès");
-                return; // Success, no need for DeviceEventEmitter
-            } catch (Exception e) {
-                android.util.Log.e("SSLWebSocket", "Erreur callback direct: " + e.getMessage(), e);
-                // Continue vers DeviceEventEmitter en cas d'erreur
-            }
-        }
+        // Add to event queue for polling (primary approach)
+        WritableMap queueEvent = Arguments.createMap();
+        queueEvent.merge(event);
+        eventQueue.offer(queueEvent);
         
-        // Fallback vers DeviceEventEmitter
-        android.util.Log.d("SSLWebSocket", "Envoi événement via DeviceEventEmitter: " + event.toString());
+        // Also try DeviceEventEmitter (backup approach)
+        String eventName = "SSLWebSocket_Event_" + wsId;
+        
+        // Create a copy for the instance-specific event to avoid "Map already consumed" error
+        WritableMap eventCopy = Arguments.createMap();
+        eventCopy.merge(event);
+        sendEvent(eventName, eventCopy);
+        
+        // Also send to global event for backward compatibility using original event
         sendEvent("SSLWebSocket_Event", event);
     }
 
@@ -262,7 +254,7 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void addListener(String eventName) {
-        // Incrementer le compteur de listeners
+        // Increment listener counter
         listenerCount++;
     }
 
