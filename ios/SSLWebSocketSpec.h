@@ -1,10 +1,3 @@
-//
-//  SSLWebSocketSpec.h
-//  react-native-pinned-ws
-//
-//  Created by GameLife Team on 2025-06-06.
-//
-
 #pragma once
 
 #include <ReactCommon/TurboModule.h>

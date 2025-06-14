@@ -1,6 +1,6 @@
 {
   "name": "react-native-pinned-ws",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "React Native WebSocket with SSL/TLS Public Key Pinning support",
   "main": "dist/module/index.js",
   "module": "dist/module/index.js",
@@ -46,14 +46,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gamelife/react-native-pinned-ws.git"
+    "url": "git+https://github.com/Gerem66/react-native-pinned-ws.git"
   },
-  "author": "GameLife Team <contact@gamelife.com> (https://gamelife.com)",
+  "author": "Gerem66 <contact@geremy.dev>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/gamelife/react-native-pinned-ws/issues"
+    "url": "https://github.com/Gerem66/react-native-pinned-ws/issues"
   },
-  "homepage": "https://github.com/gamelife/react-native-pinned-ws#readme",
+  "homepage": "https://github.com/Gerem66/react-native-pinned-ws#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },

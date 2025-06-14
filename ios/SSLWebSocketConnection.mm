@@ -1,10 +1,3 @@
-//
-//  SSLWebSocketConnection.m
-//  react-native-pinned-ws
-//
-//  Created by GameLife Team on 2025-06-06.
-//
-
 #import "SSLWebSocketConnection.h"
 #import <Network/Network.h>
 #import <Security/Security.h>
