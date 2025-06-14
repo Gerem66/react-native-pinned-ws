@@ -1,10 +1,3 @@
-//
-//  NativeSSLWebSocketSpec.h
-//  react-native-pinned-ws
-//
-//  Created by GameLife Team on 2025-06-06.
-//
-
 #import <Foundation/Foundation.h>
 #import <React/RCTBridgeModule.h>
 
