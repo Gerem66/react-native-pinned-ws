@@ -17,16 +17,26 @@
 
 RCT_EXPORT_MODULE(SSLWebSocket)
 
+// Force module initialization to ensure event emitter is ready
++ (BOOL)requiresMainQueueSetup {
+    return YES;
+}
+
+// Required for RCTBridgeModule protocol compliance
+- (dispatch_queue_t)methodQueue {
+    return dispatch_get_main_queue();
+}
+
+// Bridge property synthesis for RCTBridgeModule
+@synthesize bridge = _bridge;
+
 - (instancetype)init {
     self = [super init];
     if (self) {
         _connections = [[NSMutableDictionary alloc] init];
+        _eventQueues = [[NSMutableDictionary alloc] init];
     }
     return self;
-}
-
-- (NSArray<NSString *> *)supportedEvents {
-    return @[@"SSLWebSocket_Event"];
 }
 
 RCT_EXPORT_METHOD(createWebSocket:(NSString *)wsId
@@ -48,6 +58,9 @@ RCT_EXPORT_METHOD(createWebSocket:(NSString *)wsId
         return;
     }
     
+    // Initialize event queue for this WebSocket
+    self.eventQueues[wsId] = [[NSMutableArray alloc] init];
+    
     SSLWebSocketConnection *connection = [[SSLWebSocketConnection alloc] initWithURL:wsURL
                                                                            protocols:protocols
                                                                            sslConfig:sslConfig
@@ -60,11 +73,39 @@ RCT_EXPORT_METHOD(createWebSocket:(NSString *)wsId
     [connection connect:^(NSError * _Nullable error) {
         if (error) {
             [self.connections removeObjectForKey:wsId];
-            reject(@"connection_failed", error.localizedDescription, error);
+            [self.eventQueues removeObjectForKey:wsId];
+            
+            // Check if this is an SSL pinning error
+            NSString *errorCode = @"connection_failed";
+            if ([error.userInfo[@"errorType"] isEqualToString:@"ssl_pinning"] || 
+                [error.localizedDescription.lowercaseString containsString:@"ssl"] ||
+                [error.localizedDescription.lowercaseString containsString:@"pinning"] ||
+                [error.localizedDescription.lowercaseString containsString:@"certificate"]) {
+                errorCode = @"ssl_pinning_failed";
+            }
+            
+            reject(errorCode, error.localizedDescription, error);
         } else {
             resolve(nil);
         }
     }];
+}
+
+RCT_EXPORT_METHOD(pollEvents:(NSString *)wsId
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
+    
+    NSMutableArray *eventQueue = self.eventQueues[wsId];
+    if (!eventQueue) {
+        resolve(@[]);
+        return;
+    }
+    
+    // Return all events and clear the queue
+    NSArray *events = [eventQueue copy];
+    [eventQueue removeAllObjects];
+    
+    resolve(events);
 }
 
 RCT_EXPORT_METHOD(closeWebSocket:(NSString *)wsId
@@ -139,9 +180,26 @@ RCT_EXPORT_METHOD(cleanup:(NSString *)wsId
     if (connection) {
         [connection cleanup];
         [self.connections removeObjectForKey:wsId];
+        [self.eventQueues removeObjectForKey:wsId];
     }
     
     resolve(nil);
+}
+
+// Required for event emitter functionality (even if we don't use it directly)
+- (NSArray<NSString *> *)supportedEvents {
+    return @[];
+}
+
+// Required for listener management
+RCT_EXPORT_METHOD(addListener:(NSString *)eventName) {
+    // This is required for RCTEventEmitter compatibility
+    // We don't use it but React Native expects it
+}
+
+RCT_EXPORT_METHOD(removeListeners:(NSInteger)count) {
+    // This is required for RCTEventEmitter compatibility
+    // We don't use it but React Native expects it
 }
 
 #pragma mark - SSLWebSocketConnectionDelegate
@@ -150,10 +208,20 @@ RCT_EXPORT_METHOD(cleanup:(NSString *)wsId
                        wsId:(NSString *)wsId
                 didReceiveEvent:(NSDictionary *)event {
     
+    NSMutableArray *eventQueue = self.eventQueues[wsId];
+    if (!eventQueue) {
+        return;
+    }
+    
     NSMutableDictionary *eventData = [event mutableCopy];
     eventData[@"id"] = wsId;
+    eventData[@"timestamp"] = @([[NSDate date] timeIntervalSince1970]);
     
-    [self sendEventWithName:@"SSLWebSocket_Event" body:eventData];
+    
+    // Add event to queue (thread-safe)
+    @synchronized(eventQueue) {
+        [eventQueue addObject:eventData];
+    }
 }
 
 - (void)webSocketConnection:(SSLWebSocketConnection *)connection
@@ -167,19 +235,16 @@ RCT_EXPORT_METHOD(cleanup:(NSString *)wsId
         @"id": wsId,
         @"type": @"close",
         @"code": @(code),
-        @"reason": reason ?: @""
+        @"reason": reason ?: @"",
+        @"timestamp": @([[NSDate date] timeIntervalSince1970])
     };
     
-    [self sendEventWithName:@"SSLWebSocket_Event" body:event];
+    NSMutableArray *eventQueue = self.eventQueues[wsId];
+    if (eventQueue) {
+        @synchronized(eventQueue) {
+            [eventQueue addObject:event];
+        }
+    }
 }
-
-// Don't compile this code when we build for the old architecture.
-#ifdef RCT_NEW_ARCH_ENABLED
-- (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:
-    (const facebook::react::ObjCTurboModule::InitParams &)params
-{
-    return std::make_shared<facebook::react::NativeSSLWebSocketSpecJSI>(params);
-}
-#endif
 
 @end

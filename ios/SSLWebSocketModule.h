@@ -6,15 +6,12 @@
 //
 
 #import <React/RCTBridgeModule.h>
-#import <React/RCTEventEmitter.h>
+#import <React/RCTEventDispatcher.h>
+#import "SSLWebSocketConnection.h"
 
-#ifdef RCT_NEW_ARCH_ENABLED
-#import "SSLWebSocketSpec.h"
-#import <ReactCommon/RCTTurboModule.h>
+@interface SSLWebSocketModule : NSObject <RCTBridgeModule, SSLWebSocketConnectionDelegate>
 
-@interface SSLWebSocketModule : RCTEventEmitter <NativeSSLWebSocketSpecJSI, RCTBridgeModule, RCTTurboModule>
-#else
-@interface SSLWebSocketModule : RCTEventEmitter <RCTBridgeModule>
-#endif
+@property (nonatomic, weak) RCTBridge *bridge;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSMutableArray *> *eventQueues;
 
 @end

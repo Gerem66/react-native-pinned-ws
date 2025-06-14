@@ -20,17 +20,16 @@ try {
     SSLWebSocketModule = TurboModuleRegistry.getEnforcing('SSLWebSocket');
   }
 } catch (error) {
-  console.warn('Error loading SSLWebSocket native module:', error);
+  console.warn('[SSLWebSocket] Error loading SSLWebSocket native module:', error);
 }
 
 // Check that native module is available, otherwise throw error
 if (!SSLWebSocketModule) {
   throw new Error(
     '❌ SSLWebSocket native module not available!\n' +
-    'The native module is required for WebSocket events to work.\n' +
+    'The native module is required for WebSocket callbacks to work.\n' +
     LINKING_ERROR
   );
 }
-
 
 export default SSLWebSocketModule;
