@@ -3,6 +3,7 @@
 > **Attention** : Cette bibliothèque a été entièrement conçue et générée par IA. Bien que fonctionnelle, une review humaine est recommandée avant utilisation en production.
 
 WebSocket sécurisé avec SSL Public Key Pinning pour React Native.
+Support complet des connexions `ws://` et `wss://`.
 
 ## Installation
 
@@ -17,6 +18,8 @@ import { SSLWebSocket } from 'react-native-pinned-ws';
 
 const ws = new SSLWebSocket({
   url: 'wss://api.example.com/ws',
+  protocols: 'echo-protocol',
+  connectionTimeout: 5000,
   sslPinning: {
     hostname: 'api.example.com',
     publicKeyHashes: ['AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=']

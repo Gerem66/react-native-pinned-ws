@@ -48,6 +48,11 @@ export interface Spec extends TurboModule {
   } | null>;
 
   /**
+   * Poll for WebSocket events
+   */
+  pollEvents(id: string): Promise<any[]>;
+
+  /**
    * Clean up WebSocket resources
    */
   cleanup(id: string): Promise<void>;

@@ -15,6 +15,7 @@ public:
   virtual jsi::Value sendData(jsi::Runtime &rt, const jsi::Value &thisValue, const jsi::Value *arguments, size_t count) = 0;
   virtual jsi::Value getReadyState(jsi::Runtime &rt, const jsi::Value &thisValue, const jsi::Value *arguments, size_t count) = 0;
   virtual jsi::Value getSSLValidationResult(jsi::Runtime &rt, const jsi::Value &thisValue, const jsi::Value *arguments, size_t count) = 0;
+  virtual jsi::Value pollEvents(jsi::Runtime &rt, const jsi::Value &thisValue, const jsi::Value *arguments, size_t count) = 0;
   virtual jsi::Value cleanup(jsi::Runtime &rt, const jsi::Value &thisValue, const jsi::Value *arguments, size_t count) = 0;
   virtual jsi::Value addListener(jsi::Runtime &rt, const jsi::Value &thisValue, const jsi::Value *arguments, size_t count) = 0;
   virtual jsi::Value removeListeners(jsi::Runtime &rt, const jsi::Value &thisValue, const jsi::Value *arguments, size_t count) = 0;

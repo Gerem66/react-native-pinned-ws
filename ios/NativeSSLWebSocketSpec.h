@@ -30,7 +30,12 @@ NS_ASSUME_NONNULL_BEGIN
                       resolver:(RCTPromiseResolveBlock)resolve
                       rejecter:(RCTPromiseRejectBlock)reject;
 
-- (void)cleanup:(RCTPromiseResolveBlock)resolve
+- (void)pollEvents:(NSString *)wsId
+          resolver:(RCTPromiseResolveBlock)resolve
+          rejecter:(RCTPromiseRejectBlock)reject;
+
+- (void)cleanup:(NSString *)wsId
+       resolver:(RCTPromiseResolveBlock)resolve
        rejecter:(RCTPromiseRejectBlock)reject;
 
 - (void)addListener:(NSString *)eventName;
