@@ -27,8 +27,8 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
     public static final String NAME = "SSLWebSocket";
     private final ConcurrentHashMap<String, SSLWebSocketConnection> connections = new ConcurrentHashMap<>();
     
-    // Event queue for polling-based approach
-    private final Queue<WritableMap> eventQueue = new ConcurrentLinkedQueue<>();
+    // Event queues per WebSocket ID
+    private final ConcurrentHashMap<String, Queue<WritableMap>> eventQueues = new ConcurrentHashMap<>();
 
     public SSLWebSocketModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -55,6 +55,9 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
                 return;
             }
 
+            // Create event queue for this WebSocket
+            eventQueues.put(wsId, new ConcurrentLinkedQueue<>());
+
             SSLWebSocketConnection connection = new SSLWebSocketConnection(
                     wsId,
                     url,
@@ -79,6 +82,9 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
                             event.putInt("code", code);
                             event.putString("reason", reason != null ? reason : "");
                             sendWebSocketEvent(wsId, event);
+                            
+                            // Clean up event queue after sending close event
+                            eventQueues.remove(wsId);
                         }
                     }
             );
@@ -90,6 +96,8 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
             promise.resolve(null);
 
         } catch (Exception e) {
+            // Clean up event queue if connection creation fails
+            eventQueues.remove(wsId);
             promise.reject("connection_failed", e.getMessage(), e);
         }
     }
@@ -106,8 +114,9 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
             // Close connection
             connection.close(code != null ? code : 1000, reason);
             
-            // Immediately remove connection from map to avoid leaks
+            // Immediately remove connection and event queue from maps to avoid leaks
             connections.remove(wsId);
+            eventQueues.remove(wsId);
             
             promise.resolve(null);
 
@@ -168,11 +177,14 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void cleanup(String wsId, Promise promise) {
         try {
-            // Then remove and cleanup connection
+            // Remove and cleanup connection
             SSLWebSocketConnection connection = connections.remove(wsId);
             if (connection != null) {
                 connection.cleanup();
             }
+            
+            // Remove event queue
+            eventQueues.remove(wsId);
             
             promise.resolve(null);
 
@@ -182,11 +194,18 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void pollEvents(Promise promise) {
+    public void pollEvents(String wsId, Promise promise) {
         try {
+            Queue<WritableMap> eventQueue = eventQueues.get(wsId);
+            if (eventQueue == null) {
+                // WebSocket not found, return empty array
+                promise.resolve(Arguments.createArray());
+                return;
+            }
+            
             List<WritableMap> events = new ArrayList<>();
             
-            // Get all available events from queue
+            // Get all available events from this WebSocket's queue
             WritableMap event;
             while ((event = eventQueue.poll()) != null) {
                 events.add(event);
@@ -222,10 +241,13 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
     private void sendWebSocketEvent(String wsId, WritableMap event) {
         event.putString("id", wsId);
         
-        // Add to event queue for polling (primary approach)
-        WritableMap queueEvent = Arguments.createMap();
-        queueEvent.merge(event);
-        eventQueue.offer(queueEvent);
+        // Add to the specific WebSocket's event queue for polling (primary approach)
+        Queue<WritableMap> eventQueue = eventQueues.get(wsId);
+        if (eventQueue != null) {
+            WritableMap queueEvent = Arguments.createMap();
+            queueEvent.merge(event);
+            eventQueue.offer(queueEvent);
+        }
         
         // Also try DeviceEventEmitter (backup approach)
         String eventName = "SSLWebSocket_Event_" + wsId;

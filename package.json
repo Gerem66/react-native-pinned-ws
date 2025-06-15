@@ -1,6 +1,6 @@
 {
   "name": "react-native-pinned-ws",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "React Native WebSocket with SSL/TLS Public Key Pinning support",
   "main": "dist/module/index.js",
   "module": "dist/module/index.js",

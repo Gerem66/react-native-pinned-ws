@@ -11,4 +11,5 @@ public interface NativeSSLWebSocketSpec {
     void send(String wsId, String message, Promise promise);
     void close(String wsId, Integer code, String reason, Promise promise);
     Integer getState(String wsId);
+    void pollEvents(String wsId, Promise promise);
 }
