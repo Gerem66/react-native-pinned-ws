@@ -15,6 +15,9 @@ import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
+import android.os.Handler;
+import android.os.Looper;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -75,16 +78,25 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
 
                         @Override
                         public void onClose(String wsId, int code, String reason) {
-                            connections.remove(wsId);
-                            
+                            // Send close event BEFORE removing connection
                             WritableMap event = Arguments.createMap();
                             event.putString("type", "close");
                             event.putInt("code", code);
                             event.putString("reason", reason != null ? reason : "");
                             sendWebSocketEvent(wsId, event);
-                            
-                            // Clean up event queue after sending close event
-                            eventQueues.remove(wsId);
+
+                            // Remove connection immediately
+                            connections.remove(wsId);
+
+                            // Delay queue removal to allow time for polling to pick up the close event
+                            // Reduced delay for production - balance between reliability and resource usage
+                            Handler handler = new Handler(Looper.getMainLooper());
+                            handler.postDelayed(new Runnable() {
+                                @Override
+                                public void run() {
+                                    eventQueues.remove(wsId);
+                                }
+                            }, 500); // 500ms delay - enough time for most polling scenarios
                         }
                     }
             );

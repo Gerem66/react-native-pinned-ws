@@ -159,22 +159,33 @@ public class SSLWebSocketConnection {
                 @Override
                 public void onClosing(@NonNull WebSocket webSocket, int code, @NonNull String reason) {
                     readyState = CLOSING;
+
+                    // Send close event immediately when closing starts
+                    // This ensures we don't miss close events if onClosed is never called
+                    eventListener.onClose(wsId, code, reason);
                 }
 
                 @Override
                 public void onClosed(@NonNull WebSocket webSocket, int code, @NonNull String reason) {
                     readyState = CLOSED;
-                    eventListener.onClose(wsId, code, reason);
+
+                    // onClosed might be called after onClosing, but we already sent the close event in onClosing
+                    // So we don't need to send it again here to avoid duplicates
                 }
 
                 @Override
                 public void onFailure(@NonNull WebSocket webSocket, @NonNull Throwable t, @Nullable Response response) {
                     readyState = CLOSED;
+
+                    // Send error event first
                     WritableMap event = Arguments.createMap();
                     event.putString("type", "error");
                     event.putString("error", t.getMessage());
                     event.putString("code", "connection_failed");
                     eventListener.onEvent(wsId, event);
+
+                    // Then send close event to ensure proper cleanup
+                    eventListener.onClose(wsId, 1006, "Connection failed: " + t.getMessage());
                 }
             });
 

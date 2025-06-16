@@ -268,10 +268,9 @@ export class SSLWebSocket implements SSLWebSocketInterface {
       } catch (error) {
         console.error('[SSLWebSocket] Error during event polling:', error);
 
-        // If WebSocket no longer exists, stop polling
-        if (this._readyState === WebSocketReadyState.CLOSED) {
-          this._stopEventPolling();
-        } else {
+        // Continue polling even if there are errors, unless we're explicitly stopped
+        // Only stop if polling was explicitly deactivated
+        if (this._pollingActive) {
           // Retry after longer delay on error
           this._pollingInterval = setTimeout(poll, 1000);
         }
@@ -337,7 +336,6 @@ export class SSLWebSocket implements SSLWebSocketInterface {
       });
     } else if (event.type === 'error') {
       this._readyState = WebSocketReadyState.CLOSED;
-      this._stopEventPolling(); // Stop polling on error
 
       const errorObj = event.error ? new Error(event.error) : new Error('Unknown WebSocket error');
       const { errorType, code } = parseErrorDetails(errorObj.message);
@@ -350,15 +348,19 @@ export class SSLWebSocket implements SSLWebSocketInterface {
         errorType,
         sslInfo: undefined,
       });
+
+      // Continue polling briefly to catch any close events that might follow
     } else if (event.type === 'close') {
       this._readyState = WebSocketReadyState.CLOSED;
-      this._stopEventPolling(); // Stop polling when closed
       this._emitEvent({
         type: 'close',
         code: event.code || 1000,
         reason: event.reason || '',
         wasClean: event.code === 1000,
       });
+
+      // Stop polling after processing close event
+      this._stopEventPolling();
     }
   }
 
