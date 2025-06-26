@@ -13,10 +13,13 @@ ios/*.xcworkspace
 
 # Android
 android/.cxx/
+android/bin/
 android/build/
 android/.gradle/
 android/local.properties
 android/.settings/
+android/.project
+android/.classpath
 
 # TypeScript
 *.tsbuildinfo
