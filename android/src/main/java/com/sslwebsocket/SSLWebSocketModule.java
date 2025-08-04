@@ -89,14 +89,14 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
                             connections.remove(wsId);
 
                             // Delay queue removal to allow time for polling to pick up the close event
-                            // Reduced delay for production - balance between reliability and resource usage
+                            // Reduced delay for better resource management
                             Handler handler = new Handler(Looper.getMainLooper());
                             handler.postDelayed(new Runnable() {
                                 @Override
                                 public void run() {
                                     eventQueues.remove(wsId);
                                 }
-                            }, 500); // 500ms delay - enough time for most polling scenarios
+                            }, 100); // 100ms delay - sufficient for polling while minimizing resource usage
                         }
                     }
             );
