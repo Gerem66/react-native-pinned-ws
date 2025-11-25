@@ -1,6 +1,6 @@
 {
   "name": "react-native-pinned-ws",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "React Native WebSocket with SSL/TLS Public Key Pinning support",
   "main": "dist/module/index.js",
   "module": "dist/module/index.js",
@@ -13,7 +13,6 @@
     "android",
     "ios",
     "*.podspec",
-    "codegen.json",
     "!android/build",
     "!android/.cxx",
     "!android/.gradle",

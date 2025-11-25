@@ -46,7 +46,6 @@ jobs:
             ./android/*
             ./ios/*
             ./*.podspec
-            ./codegen.json
             ./package.json
             ./README.md
             ./LICENSE

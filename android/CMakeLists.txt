@@ -15,6 +15,9 @@ file(TO_CMAKE_PATH "${REACT_ANDROID_DIR}" REACT_ANDROID_DIR)
 file(TO_CMAKE_PATH "${REACT_ANDROID_BUILD_DIR}" REACT_ANDROID_BUILD_DIR)
 file(TO_CMAKE_PATH "${NODE_MODULES_DIR}" NODE_MODULES_DIR)
 
+# Include React Native flags and utilities
+include("${REACT_ANDROID_DIR}/../ReactCommon/cmake-utils/react-native-flags.cmake")
+
 # For New Architecture (Fabric/TurboModules) - ensure codegen can link
 if(EXISTS "${PROJECT_BUILD_DIR}/generated/source/codegen/jni")
   # Add the codegen directory - this contains the generated C++ code
