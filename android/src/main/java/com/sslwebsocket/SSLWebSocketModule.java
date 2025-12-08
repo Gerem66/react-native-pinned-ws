@@ -89,14 +89,14 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
                             connections.remove(wsId);
 
                             // Delay queue removal to allow time for polling to pick up the close event
-                            // Reduced delay for better resource management
+                            // 1000ms delay ensures polling (which can be up to 500ms in idle) has time to retrieve the event
                             Handler handler = new Handler(Looper.getMainLooper());
                             handler.postDelayed(new Runnable() {
                                 @Override
                                 public void run() {
                                     eventQueues.remove(wsId);
                                 }
-                            }, 100); // 100ms delay - sufficient for polling while minimizing resource usage
+                            }, 1000); // 1000ms delay - ensures polling retrieves close event even in idle mode
                         }
                     }
             );
@@ -123,12 +123,9 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
                 return;
             }
 
-            // Close connection
+            // Close connection - the onClose callback will handle cleanup
+            // DON'T remove from maps here - let onClose handle it to avoid race conditions
             connection.close(code != null ? code : 1000, reason);
-            
-            // Immediately remove connection and event queue from maps to avoid leaks
-            connections.remove(wsId);
-            eventQueues.remove(wsId);
             
             promise.resolve(null);
 

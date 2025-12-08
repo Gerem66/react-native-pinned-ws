@@ -57,6 +57,7 @@ export class SSLWebSocket implements SSLWebSocketInterface {
   private _config: WebSocketConfig;
   private _pollingInterval: NodeJS.Timeout | null = null;
   private _pollingActive: boolean = false;
+  private _isConnecting: boolean = false; // Flag to prevent multiple connect() calls
 
   constructor(config: WebSocketConfig) {
     this._id = this._generateId();
@@ -97,6 +98,19 @@ export class SSLWebSocket implements SSLWebSocketInterface {
   }
 
   async connect(): Promise<void> {
+    // Prevent multiple simultaneous connect() calls
+    if (this._isConnecting) {
+      const errorObj = new Error('WebSocket connection already in progress');
+      this._emitEvent({
+        type: 'error',
+        error: errorObj,
+        message: errorObj.message,
+        code: SSLWebSocketErrorCode.WEBSOCKET_EXISTS,
+        errorType: 'validation',
+      });
+      return;
+    }
+
     if (this._readyState !== WebSocketReadyState.CLOSED) {
       // Emit an error via event listener instead of throw
       const errorObj = new Error('WebSocket is already connecting or connected');
@@ -110,6 +124,7 @@ export class SSLWebSocket implements SSLWebSocketInterface {
       return;
     }
 
+    this._isConnecting = true;
     this._readyState = WebSocketReadyState.CONNECTING;
 
     const protocols = Array.isArray(this._config.protocols)
@@ -129,10 +144,12 @@ export class SSLWebSocket implements SSLWebSocketInterface {
       );
 
       // Start polling for events
+      // Note: _isConnecting will be reset when we receive 'open' or 'error' event
       this._startEventPolling();
     } catch (error: any) {
         // If createWebSocket fails immediately (ex: invalid parameters),
         // emit the error via events
+        this._isConnecting = false;
         this._readyState = WebSocketReadyState.CLOSED;
         const errorObj = error instanceof Error ? error : new Error(String(error));
 
@@ -153,18 +170,41 @@ export class SSLWebSocket implements SSLWebSocketInterface {
       return;
     }
 
+    // Prevent multiple close calls
+    if (this._readyState === WebSocketReadyState.CLOSING) {
+      return;
+    }
+
     this._readyState = WebSocketReadyState.CLOSING;
 
-    // Stop event polling
-    this._stopEventPolling();
+    // DON'T stop event polling here - we need to receive the close event first
+    // Polling will be stopped when we receive the close event in _handleWebSocketEvent
 
     // Handle potential errors during closure
     try {
       NativeModule.closeWebSocket(this._id, code, reason)
+        .then(() => {
+          // Native close initiated successfully
+          // Wait for the close event from polling, but set a timeout as fallback
+          setTimeout(() => {
+            // If we're still in CLOSING state after timeout, force close
+            if (this._readyState === WebSocketReadyState.CLOSING) {
+              this._readyState = WebSocketReadyState.CLOSED;
+              this._stopEventPolling();
+              this._emitEvent({
+                type: 'close',
+                code: code || 1000,
+                reason: reason || 'Close timeout',
+                wasClean: false,
+              });
+            }
+          }, 2000); // 2 second timeout for close event
+        })
         .catch((error: any) => {
           // If closure fails, force closed state and emit close event
           console.warn('Error closing WebSocket:', error);
           this._readyState = WebSocketReadyState.CLOSED;
+          this._stopEventPolling();
           this._emitEvent({
             type: 'close',
             code: code || 1000,
@@ -176,6 +216,7 @@ export class SSLWebSocket implements SSLWebSocketInterface {
       // Synchronous error during call
       console.warn('Synchronous error closing WebSocket:', error);
       this._readyState = WebSocketReadyState.CLOSED;
+      this._stopEventPolling();
       this._emitEvent({
         type: 'close',
         code: code || 1000,
@@ -324,6 +365,7 @@ export class SSLWebSocket implements SSLWebSocketInterface {
     }
 
     if (event.type === 'open') {
+      this._isConnecting = false; // Connection established
       this._readyState = WebSocketReadyState.OPEN;
       this._protocol = event.protocol || '';
       this._emitEvent({
@@ -335,6 +377,7 @@ export class SSLWebSocket implements SSLWebSocketInterface {
         data: event.data,
       });
     } else if (event.type === 'error') {
+      this._isConnecting = false; // Connection failed
       this._readyState = WebSocketReadyState.CLOSED;
 
       const errorObj = event.error ? new Error(event.error) : new Error('Unknown WebSocket error');
@@ -351,6 +394,7 @@ export class SSLWebSocket implements SSLWebSocketInterface {
 
       // Continue polling briefly to catch any close events that might follow
     } else if (event.type === 'close') {
+      this._isConnecting = false; // Ensure flag is reset on close
       this._readyState = WebSocketReadyState.CLOSED;
       this._emitEvent({
         type: 'close',
@@ -368,16 +412,34 @@ export class SSLWebSocket implements SSLWebSocketInterface {
    * Clean up resources (to be called when the WebSocket is no longer used)
    */
   cleanup(): void {
+    // Reset connecting flag
+    this._isConnecting = false;
+
     // Stop event polling immediately
     this._stopEventPolling();
 
+    // Clean up listeners first
+    this._listeners.clear();
+
     // Close connection if not already closed
-    if (this._readyState !== WebSocketReadyState.CLOSED) {
-      this.close(1000, 'Cleanup');
+    if (this._readyState !== WebSocketReadyState.CLOSED &&
+        this._readyState !== WebSocketReadyState.CLOSING) {
+      // Set state to CLOSED directly to prevent any further processing
+      this._readyState = WebSocketReadyState.CLOSED;
+
+      // Try to close gracefully but don't wait for response
+      try {
+        NativeModule.closeWebSocket(this._id, 1000, 'Cleanup')
+          .catch(() => {
+            // Ignore - we're cleaning up anyway
+          });
+      } catch {
+        // Ignore synchronous errors
+      }
     }
 
-    // Clean up listeners
-    this._listeners.clear();
+    // Force closed state
+    this._readyState = WebSocketReadyState.CLOSED;
 
     // Clean up native side with error handling
     try {
@@ -388,9 +450,6 @@ export class SSLWebSocket implements SSLWebSocketInterface {
     } catch (error) {
       console.warn('Synchronous error during native cleanup:', error);
     }
-
-    // Force closed state
-    this._readyState = WebSocketReadyState.CLOSED;
   }
 }
 
