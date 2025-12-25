@@ -370,7 +370,7 @@ export class SSLWebSocket implements SSLWebSocketInterface {
   /**
    * Generate a unique WebSocket ID
    * Format: ws_{timestamp}_{random_string}
-   * The random string is 9 characters long (substring from position 2 to 11)
+   * The random string is 9 characters long (extracted from indices 2-10 inclusive)
    * @private
    */
   private _generateId(): string {
