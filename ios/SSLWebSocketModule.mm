@@ -213,6 +213,11 @@ RCT_EXPORT_METHOD(removeListeners:(NSInteger)count) {
     
     // Add event to queue (thread-safe)
     @synchronized(eventQueue) {
+        // Prevent unbounded queue growth - limit to 100 events
+        if ([eventQueue count] >= 100) {
+            RCTLogWarn(@"Event queue for %@ is full, dropping oldest event", wsId);
+            [eventQueue removeObjectAtIndex:0];
+        }
         [eventQueue addObject:eventData];
     }
 }

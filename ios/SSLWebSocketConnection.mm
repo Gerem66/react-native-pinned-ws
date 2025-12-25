@@ -28,6 +28,11 @@
                        wsId:(NSString *)wsId {
     self = [super init];
     if (self) {
+        // Validate required parameters
+        NSAssert(url != nil, @"URL cannot be nil");
+        NSAssert(wsId != nil && wsId.length > 0, @"WebSocket ID cannot be nil or empty");
+        NSAssert(delegate != nil, @"Delegate cannot be nil");
+        
         _url = url;
         _protocols = protocols;
         _sslConfig = sslConfig;
@@ -99,6 +104,15 @@
 }
 
 - (BOOL)sendData:(NSString *)data error:(NSError **)error {
+    if (!data) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"SSLWebSocket" 
+                                         code:1002 
+                                     userInfo:@{NSLocalizedDescriptionKey: @"Data cannot be nil"}];
+        }
+        return NO;
+    }
+    
     if (self.readyState != SSLWebSocketReadyStateOpen) {
         if (error) {
             *error = [NSError errorWithDomain:@"SSLWebSocket" 

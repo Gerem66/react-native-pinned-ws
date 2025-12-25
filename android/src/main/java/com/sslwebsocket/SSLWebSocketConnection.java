@@ -60,6 +60,17 @@ public class SSLWebSocketConnection {
             ReadableMap options,
             EventListener eventListener
     ) {
+        // Validate required parameters
+        if (wsId == null || wsId.isEmpty()) {
+            throw new IllegalArgumentException("WebSocket ID cannot be null or empty");
+        }
+        if (url == null || url.isEmpty()) {
+            throw new IllegalArgumentException("WebSocket URL cannot be null or empty");
+        }
+        if (eventListener == null) {
+            throw new IllegalArgumentException("EventListener cannot be null");
+        }
+        
         this.wsId = wsId;
         this.url = url;
         this.protocols = protocols;
@@ -257,6 +268,11 @@ public class SSLWebSocketConnection {
     }
 
     public void sendData(String data, Promise promise) {
+        if (data == null) {
+            promise.reject("invalid_data", "Data cannot be null");
+            return;
+        }
+        
         if (readyState != OPEN) {
             promise.reject("invalid_state", "WebSocket is not in OPEN state");
             return;

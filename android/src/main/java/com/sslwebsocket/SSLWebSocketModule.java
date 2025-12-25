@@ -255,6 +255,12 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
         if (eventQueue != null) {
             WritableMap queueEvent = Arguments.createMap();
             queueEvent.merge(event);
+            
+            // Prevent unbounded queue growth - limit to 100 events
+            if (eventQueue.size() >= 100) {
+                android.util.Log.w("SSLWebSocket", "Event queue for " + wsId + " is full, dropping oldest event");
+                eventQueue.poll(); // Remove oldest event
+            }
             eventQueue.offer(queueEvent);
         }
         
