@@ -288,7 +288,17 @@ public class SSLWebSocketConnection {
             webSocket = null;
         }
         if (client != null) {
+            // Shutdown dispatcher with proper timeout
             client.dispatcher().executorService().shutdown();
+            try {
+                // Wait for graceful shutdown
+                if (!client.dispatcher().executorService().awaitTermination(2, TimeUnit.SECONDS)) {
+                    client.dispatcher().executorService().shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                client.dispatcher().executorService().shutdownNow();
+                Thread.currentThread().interrupt();
+            }
             client.connectionPool().evictAll();
             client = null;
         }

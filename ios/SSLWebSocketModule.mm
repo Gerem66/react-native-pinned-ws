@@ -237,6 +237,12 @@ RCT_EXPORT_METHOD(removeListeners:(NSInteger)count) {
         @synchronized(eventQueue) {
             [eventQueue addObject:event];
         }
+        
+        // Schedule event queue cleanup after delay to allow polling to retrieve the close event
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), 
+                      dispatch_get_main_queue(), ^{
+            [self.eventQueues removeObjectForKey:wsId];
+        });
     }
 }
 
