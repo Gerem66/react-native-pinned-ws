@@ -367,6 +367,12 @@ export class SSLWebSocket implements SSLWebSocketInterface {
     }
   }
 
+  /**
+   * Generate a unique WebSocket ID
+   * Format: ws_{timestamp}_{random_string}
+   * The random string is 9 characters long (substring from position 2 to 11)
+   * @private
+   */
   private _generateId(): string {
     return `ws_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   }

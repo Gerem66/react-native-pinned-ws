@@ -39,6 +39,7 @@ public class SSLWebSocketConnection {
     private static final int OPEN = 1;
     private static final int CLOSING = 2;
     private static final int CLOSED = 3;
+    private static final int SHUTDOWN_TIMEOUT_SECONDS = 2;
 
     private final String wsId;
     private final String url;
@@ -308,7 +309,7 @@ public class SSLWebSocketConnection {
             client.dispatcher().executorService().shutdown();
             try {
                 // Wait for graceful shutdown
-                if (!client.dispatcher().executorService().awaitTermination(2, TimeUnit.SECONDS)) {
+                if (!client.dispatcher().executorService().awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                     client.dispatcher().executorService().shutdownNow();
                 }
             } catch (InterruptedException e) {

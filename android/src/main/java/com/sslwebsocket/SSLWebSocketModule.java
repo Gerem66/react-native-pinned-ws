@@ -28,6 +28,8 @@ import java.util.ArrayList;
 
 public class SSLWebSocketModule extends ReactContextBaseJavaModule {
     public static final String NAME = "SSLWebSocket";
+    private static final int MAX_EVENT_QUEUE_SIZE = 100;
+    
     private final ConcurrentHashMap<String, SSLWebSocketConnection> connections = new ConcurrentHashMap<>();
     
     // Event queues per WebSocket ID
@@ -256,8 +258,8 @@ public class SSLWebSocketModule extends ReactContextBaseJavaModule {
             WritableMap queueEvent = Arguments.createMap();
             queueEvent.merge(event);
             
-            // Prevent unbounded queue growth - limit to 100 events
-            if (eventQueue.size() >= 100) {
+            // Prevent unbounded queue growth - limit to MAX_EVENT_QUEUE_SIZE events
+            if (eventQueue.size() >= MAX_EVENT_QUEUE_SIZE) {
                 android.util.Log.w("SSLWebSocket", "Event queue for " + wsId + " is full, dropping oldest event");
                 eventQueue.poll(); // Remove oldest event
             }
