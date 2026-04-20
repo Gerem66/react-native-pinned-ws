@@ -35,7 +35,6 @@ android/.classpath
 Thumbs.db
 
 # Package locks (for libraries)
-package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
