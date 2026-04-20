@@ -2,6 +2,10 @@
 #import "SSLWebSocketConnection.h"
 #import <React/RCTLog.h>
 
+// Constants for event queue management
+#define MAX_EVENT_QUEUE_SIZE 100
+#define CLEANUP_DELAY_SECONDS 1.0
+
 @interface SSLWebSocketModule ()
 @property (nonatomic, strong) NSMutableDictionary<NSString *, SSLWebSocketConnection *> *connections;
 @end
@@ -224,6 +228,11 @@ RCT_EXPORT_METHOD(removeListeners:(NSInteger)count) {
     
     // Add event to queue (thread-safe)
     @synchronized(eventQueue) {
+        // Prevent unbounded queue growth - limit to MAX_EVENT_QUEUE_SIZE events
+        if ([eventQueue count] >= MAX_EVENT_QUEUE_SIZE) {
+            RCTLogWarn(@"Event queue for %@ is full, dropping oldest event", wsId);
+            [eventQueue removeObjectAtIndex:0];
+        }
         [eventQueue addObject:eventData];
     }
 }
@@ -248,6 +257,12 @@ RCT_EXPORT_METHOD(removeListeners:(NSInteger)count) {
         @synchronized(eventQueue) {
             [eventQueue addObject:event];
         }
+        
+        // Schedule event queue cleanup after delay to allow polling to retrieve the close event
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(CLEANUP_DELAY_SECONDS * NSEC_PER_SEC)), 
+                      dispatch_get_main_queue(), ^{
+            [self.eventQueues removeObjectForKey:wsId];
+        });
     }
 }
 

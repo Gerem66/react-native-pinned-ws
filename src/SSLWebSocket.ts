@@ -98,6 +98,31 @@ export class SSLWebSocket implements SSLWebSocketInterface {
   }
 
   async connect(): Promise<void> {
+    // Validate URL format
+    if (!this._url || typeof this._url !== 'string') {
+      const errorObj = new Error('Invalid WebSocket URL: URL must be a non-empty string');
+      this._emitEvent({
+        type: 'error',
+        error: errorObj,
+        message: errorObj.message,
+        code: SSLWebSocketErrorCode.INVALID_URL,
+        errorType: 'validation',
+      });
+      return;
+    }
+
+    if (!this._url.startsWith('ws://') && !this._url.startsWith('wss://')) {
+      const errorObj = new Error('Invalid WebSocket URL: Must start with ws:// or wss://');
+      this._emitEvent({
+        type: 'error',
+        error: errorObj,
+        message: errorObj.message,
+        code: SSLWebSocketErrorCode.INVALID_URL,
+        errorType: 'validation',
+      });
+      return;
+    }
+
     // Prevent multiple simultaneous connect() calls
     if (this._isConnecting) {
       const errorObj = new Error('WebSocket connection already in progress');
@@ -374,6 +399,10 @@ export class SSLWebSocket implements SSLWebSocketInterface {
         }
 
         // Adaptive polling: faster when active, slower when idle
+        // Stop polling immediately if connection is closed
+        if (!this._pollingActive || this._readyState === WebSocketReadyState.CLOSED) {
+          return;
+        }
         const delay = this._readyState === WebSocketReadyState.OPEN ? 100 : 500;
         this._pollingInterval = setTimeout(poll, delay);
       } catch (error) {
@@ -408,8 +437,14 @@ export class SSLWebSocket implements SSLWebSocketInterface {
     }
   }
 
+  /**
+   * Generate a unique WebSocket ID
+   * Format: ws_{timestamp}_{random_string}
+   * The random string is 9 characters long (extracted from indices 2-10 inclusive)
+   * @private
+   */
   private _generateId(): string {
-    return `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `ws_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   }
 
   private _emitEvent(event: WebSocketEvent): void {
@@ -531,6 +566,13 @@ export function createSSLWebSocket(config: WebSocketConfig): SSLWebSocket {
 // Utility function to extract hostname from a WebSocket URL
 export function extractHostname(url: string): string {
   try {
+    // Validate WebSocket URL format first
+    if (!url || typeof url !== 'string') {
+      throw new Error('Invalid WebSocket URL');
+    }
+    if (!url.startsWith('ws://') && !url.startsWith('wss://')) {
+      throw new Error('Invalid WebSocket URL');
+    }
     const urlObj = new URL(url);
     return urlObj.hostname;
   } catch {
