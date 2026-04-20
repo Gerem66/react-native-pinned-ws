@@ -41,6 +41,7 @@ typedef NS_ENUM(NSInteger, SSLWebSocketReadyState) {
 - (BOOL)sendData:(NSString *)data error:(NSError **)error;
 - (NSDictionary * _Nullable)sslValidationResult;
 - (void)cleanup;
+- (SSLWebSocketReadyState)syncReadyState;  // Check actual task state, not just cached value
 
 @end
 

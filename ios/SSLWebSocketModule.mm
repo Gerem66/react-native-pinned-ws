@@ -144,11 +144,22 @@ RCT_EXPORT_METHOD(getReadyState:(NSString *)wsId
     
     SSLWebSocketConnection *connection = self.connections[wsId];
     if (!connection) {
-        reject(@"websocket_not_found", @"WebSocket not found", nil);
+        // Connection doesn't exist in our map = definitely closed
+        resolve(@(SSLWebSocketReadyStateClosed));
         return;
     }
     
-    resolve(@([connection readyState]));
+    // Use syncReadyState to check the actual task state
+    // This is critical for iOS background where delegate methods may not fire
+    SSLWebSocketReadyState actualState = [connection syncReadyState];
+    
+    // If the connection is now closed, clean it up from our map
+    if (actualState == SSLWebSocketReadyStateClosed) {
+        [self.connections removeObjectForKey:wsId];
+        // Keep event queue so any pending events can still be polled
+    }
+    
+    resolve(@(actualState));
 }
 
 RCT_EXPORT_METHOD(getSSLValidationResult:(NSString *)wsId

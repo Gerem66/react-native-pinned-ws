@@ -280,6 +280,76 @@ export class SSLWebSocket implements SSLWebSocketInterface {
   }
 
   /**
+   * Synchronize the ready state with the native side.
+   * This is critical for iOS where JS timers are suspended in background,
+   * causing the polling to miss close events when the app returns to foreground.
+   * @returns Promise<WebSocketReadyState> The synchronized ready state
+   */
+  async syncReadyState(): Promise<WebSocketReadyState> {
+    // If already closed, nothing to sync
+    if (this._readyState === WebSocketReadyState.CLOSED) {
+      return this._readyState;
+    }
+
+    try {
+      // First, process any pending events in the queue
+      const events = await NativeModule.pollEvents(this._id);
+      if (Array.isArray(events) && events.length > 0) {
+        for (const event of events) {
+          this._handleWebSocketEvent(event, 'sync');
+        }
+      }
+
+      // Re-read state after processing events (may have changed by _handleWebSocketEvent)
+      // Cast needed because TypeScript's control flow analysis doesn't track async state changes
+      const currentState = this._readyState as WebSocketReadyState;
+
+      // If we processed a close event, we're done
+      if (currentState === WebSocketReadyState.CLOSED) {
+        return currentState;
+      }
+
+      // Check the native ready state
+      const nativeState = await NativeModule.getReadyState(this._id);
+      
+      // If native side says we're closed but JS thinks we're open,
+      // we missed the close event (common on iOS background)
+      if (nativeState === WebSocketReadyState.CLOSED) {
+        this._readyState = WebSocketReadyState.CLOSED;
+        this._isConnecting = false;
+        this._stopEventPolling();
+        
+        // Emit a close event so listeners know the connection was lost
+        this._emitEvent({
+          type: 'close',
+          code: 1006, // Abnormal closure
+          reason: 'Connection lost (detected on foreground)',
+          wasClean: false,
+        });
+      }
+    } catch {
+      // If getReadyState fails (connection doesn't exist on native side),
+      // the connection was definitely closed
+      // Cast needed because TypeScript's control flow analysis doesn't track async state changes
+      const currentState = this._readyState as WebSocketReadyState;
+      if (currentState !== WebSocketReadyState.CLOSED) {
+        this._readyState = WebSocketReadyState.CLOSED;
+        this._isConnecting = false;
+        this._stopEventPolling();
+        
+        this._emitEvent({
+          type: 'close',
+          code: 1006,
+          reason: 'Connection lost (native connection not found)',
+          wasClean: false,
+        });
+      }
+    }
+
+    return this._readyState;
+  }
+
+  /**
    * Start intelligent event polling
    */
   private _startEventPolling(): void {

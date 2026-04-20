@@ -156,6 +156,13 @@ interface SSLWebSocketInterface {
 
   /** Get SSL validation result */
   getSSLValidationResult(): Promise<SSLValidationResult | null>;
+
+  /**
+   * Synchronize the ready state with the native side.
+   * Call this when the app returns to foreground on iOS to detect
+   * if the connection was closed while the app was in background.
+   */
+  syncReadyState(): Promise<WebSocketReadyState>;
 }
 
 export type {

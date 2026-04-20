@@ -175,6 +175,55 @@
     self.readyState = SSLWebSocketReadyStateClosed;
 }
 
+- (SSLWebSocketReadyState)syncReadyState {
+    // If we think we're closed, we're definitely closed
+    if (self.readyState == SSLWebSocketReadyStateClosed) {
+        return SSLWebSocketReadyStateClosed;
+    }
+    
+    // Check if the WebSocket task still exists and is running
+    if (!self.webSocketTask) {
+        // Task was deallocated, connection is definitely closed
+        self.readyState = SSLWebSocketReadyStateClosed;
+        return SSLWebSocketReadyStateClosed;
+    }
+    
+    // Check the actual state of the NSURLSessionTask
+    // This is critical for iOS background - the task may have been cancelled
+    // by the system without calling our delegate methods
+    NSURLSessionTaskState taskState = self.webSocketTask.state;
+    
+    switch (taskState) {
+        case NSURLSessionTaskStateRunning:
+            // Task is running, check our cached state
+            // If we think we're open but task is running, trust our state
+            return self.readyState;
+            
+        case NSURLSessionTaskStateSuspended:
+            // iOS may have suspended the task in background
+            // This often happens right before it's killed
+            // Check closeCode to see if it was closed
+            if (self.webSocketTask.closeCode != -1) {
+                self.readyState = SSLWebSocketReadyStateClosed;
+                return SSLWebSocketReadyStateClosed;
+            }
+            // Still suspended but not closed yet
+            return self.readyState;
+            
+        case NSURLSessionTaskStateCanceling:
+            self.readyState = SSLWebSocketReadyStateClosing;
+            return SSLWebSocketReadyStateClosing;
+            
+        case NSURLSessionTaskStateCompleted:
+            // Task completed = connection is closed
+            self.readyState = SSLWebSocketReadyStateClosed;
+            return SSLWebSocketReadyStateClosed;
+            
+        default:
+            return self.readyState;
+    }
+}
+
 #pragma mark - NSURLSessionWebSocketDelegate
 
 - (void)URLSession:(NSURLSession *)session 
