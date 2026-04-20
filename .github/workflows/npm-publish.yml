@@ -69,5 +69,9 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 20
+          registry-url: https://registry.npmjs.org/
+
+      # Remove _authToken placeholder created by setup-node to let npm use OIDC auth
+      - run: npm config delete //registry.npmjs.org/:_authToken
 
       - run: npm publish --access public --provenance
